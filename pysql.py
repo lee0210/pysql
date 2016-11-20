@@ -182,7 +182,7 @@ def SQL_Object(c_obj):
 #
     def __iter__(self):
         sql = 'select `{0}` from `{1}`'.format(
-            '`,`'.join(c_obj.__columns__.keys()), 
+            '`,`'.join(c_obj.__columns__), 
             c_obj.__table__)
         if hasattr(c_obj, '__key__'):
              sql = sql + '  where {0}'.format(' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
