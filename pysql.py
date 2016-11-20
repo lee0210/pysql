@@ -12,7 +12,7 @@ import mysql.connector as DBConnector
 #
 # Connect to database server
 #
-def get_dbc(commit=True):
+def get_dbc():
     return DBConnector.connect(**configuare)
 #
 # Execute a SQL directly
@@ -30,12 +30,11 @@ def execute(sql):
         c.close()
         dbc.close()
 
-type_list = [float, int, long]
 attrs = ['__table__', '__columns__']
 
 
 def SQL_Object(c_obj):
-    global type_list, attrs
+    global attrs
 #
 # Inherited from base table
 #
@@ -52,7 +51,7 @@ def SQL_Object(c_obj):
 
     def set_value(self, d):
         for k, v in d.items():
-            setattr(self, 'f_'+k, v)
+            setattr(self, k, v)
 
 #
 # Get the first matched record
@@ -60,10 +59,13 @@ def SQL_Object(c_obj):
     def chain(self):
         if not hasattr(c_obj, '__key__'):
             return False
-        sql = """select `%s` from `%s` where %s"""%('`,`'.join(c_obj.__columns__.keys()), c_obj.__table__, ' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
+        sql = 'select `{0}` from `{1}` where {2}'.format(
+            '`,`'.join(c_obj.__columns__), 
+            c_obj.__table__, 
+            ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
         if hasattr(c_obj, '__orderby__'):
-            sql = sql + """ order by `%s`""" % '`,`'.join(c_obj.__orderby__)
-        sql = sql + " limit 1 "
+            sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
+        sql = sql + ' limit 1 '
 
         try:
             dbc = get_dbc()
@@ -84,7 +86,9 @@ def SQL_Object(c_obj):
 #
 #
     def counts(self):
-        sql = """select count(*) as `num` from `%s` where %s"""%(c_obj.__table__, ' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
+        sql = 'select count(*) as `num` from `{0}` where {1}'.format(
+            c_obj.__table__, 
+            ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -106,7 +110,10 @@ def SQL_Object(c_obj):
             return False    
         counts = self.counts()
         if counts > 0:
-            sql = """update `%s` set %s where %s"""%(c_obj.__table__, ','.join(['`%s`=%%(%s)s'%(column, column) for column in c_obj.__columns__]), ' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
+            sql = 'update `{0}` set {1} where {2}'.format(
+                c_obj.__table__, 
+                ','.join(['`{0}`=%%({0})s'%(column) for column in c_obj.__columns__]), 
+                ' and '.join(['`{0}`=%%({0})s'%(key) for key in c_obj.__key__]))
             try:
                 dbc = get_dbc()
                 c = dbc.cursor(dictionary=True)
@@ -121,7 +128,10 @@ def SQL_Object(c_obj):
 # Insert a record
 #
     def insert(self):
-        sql = """insert into `%s`(`%s`) values(%s)"""%(c_obj.__table__, '`,`'.join([column for column in c_obj.__columns__]), ','.join(['%%(%s)s'%column for column in c_obj.__columns__]))
+        sql = 'insert into `{0}`(`{1}`) values({2})'.format(
+            c_obj.__table__, 
+            '`,`'.join(c_obj.__columns__), 
+            ','.join(['%%({0})s'.format(column) for column in c_obj.__columns__]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -138,9 +148,11 @@ def SQL_Object(c_obj):
 #
     def delete(self):
         if hasattr(c_obj, '__key__'):
-            sql = """delete from `%s` where %s"""%(c_obj.__table__, ' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
+            sql = 'delete from `{0}` where {1}'.format(
+                c_obj.__table__, 
+                ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
         else:
-            sql = """delete from `%s`"""%c_obj.__table__
+            sql = 'delete from `{0}`'.format(c_obj.__table__)
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -152,30 +164,36 @@ def SQL_Object(c_obj):
         finally:
             c.close()
             dbc.close()
+
     def get_keys(self):
         rtn = {}
         if hasattr(c_obj, '__key__'):
 	    for k in c_obj.__key__:
-	        rtn[k] = getattr(self, 'f_'+k)
+	        rtn[k] = getattr(self, k)
         return rtn
+
     def get_dict(self):
         rtn = {}
         for k in c_obj.__columns__:
-            rtn[k] = getattr(self, 'f_'+k)
+            rtn[k] = getattr(self, k)
         return rtn
 #
 # iterator 
 #
     def __iter__(self):
-        sql = """select `%s` from `%s`""" % ('`,`'.join(c_obj.__columns__.keys()), c_obj.__table__)
+        sql = 'select `{0}` from `{1}`'.format(
+            '`,`'.join(c_obj.__columns__.keys()), 
+            c_obj.__table__)
         if hasattr(c_obj, '__key__'):
-             sql = sql + """  where %s""" % ' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__])
+             sql = sql + '  where {0}'.format(' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
         if hasattr(c_obj, '__orderby__'):
-            sql = sql + """ order by `%s`""" % '`,`'.join(c_obj.__orderby__)
+            sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
         if hasattr(self, 'page_size'):
             if not hasattr(self, 'cur_page'):
                 self.cur_page = 1
-            sql = sql + """ limit %d, %d"""  % ((self.cur_page - 1) * self.page_size, self.page_size)
+            sql = sql + ' limit {0}, {1}'.format(
+                (self.cur_page - 1) * self.page_size, 
+                self.page_size)
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -191,9 +209,6 @@ def SQL_Object(c_obj):
             c.close()
             dbc.close()
     members = {}
-    for k, v in c_obj.__columns__.items():
-        k = 'f_' + k
-        members[k] = v
     members['chain'] = chain
     members['update'] = update
     members['delete'] = delete
@@ -206,5 +221,4 @@ def SQL_Object(c_obj):
     for k in attrs:
         members[k] = getattr(c_obj, k)
     return classobj(c_obj.__name__, (), members)
-
 
