@@ -187,12 +187,12 @@ class table:
              sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         if hasattr(self, '__orderby__'):
             sql = sql + ' order by `{0}`'.format('`,`'.join(self.__orderby__))
-        if hasattr(self, 'page_size'):
-            if not hasattr(self, 'cur_page'):
-                self.cur_page = 1
+        if hasattr(self, '__page_size__'):
+            if not hasattr(self, '__cur_page__'):
+                self.__cur_page__ = 1
             sql = sql + ' limit {0}, {1}'.format(
-                (self.cur_page - 1) * self.page_size, 
-                self.page_size)
+                (self.__cur_page__ - 1) * self.__page_size__, 
+                self.__page_size__)
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
