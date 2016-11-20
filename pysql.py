@@ -22,10 +22,10 @@ def execute(sql):
         dbc = get_dbc()
         c = dbc.cursor()
         c.execute(sql)
-        return True
+        return c
     except Exception as e:
         print e
-        return False
+        return None
     finally:
         c.close()
         dbc.close()
