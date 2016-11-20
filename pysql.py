@@ -30,41 +30,30 @@ def execute(sql):
         c.close()
         dbc.close()
 
-attrs = ['__table__', '__columns__']
 
-
-def SQL_Object(c_obj):
-    global attrs
-#
-# Inherited from base table
-#
-    if hasattr(c_obj, '__basetable__'):
-        p = c_obj.__basetable__
-        if hasattr(p, '__basetable__'):
-            c_obj.__basetable__ = p.__basetable__
-        else:
-            delattr(c_obj, '__basetable__')    
-        for k in attrs:
-            if not hasattr(c_obj, k) and hasattr(p, k):
-                setattr(c_obj, k, getattr(p, k))
-        return SQL_Object(c_obj)
+class table:
+    
+    def __init__(self, table, columns):
+        self.__table__ = table
+        self.__columns__ = columns
 
     def set_value(self, d):
         for k, v in d.items():
             setattr(self, k, v)
-
 #
 # Get the first matched record
 #
-    def chain(self):
-        if not hasattr(c_obj, '__key__'):
+    def chain(self, keys=None):
+        if not hasattr(self, '__keys__') and keys is None:
             return False
+        if keys is None:
+            keys = self.__keys__
         sql = 'select `{0}` from `{1}` where {2}'.format(
-            '`,`'.join(c_obj.__columns__), 
-            c_obj.__table__, 
-            ' and '.join(['`{0}`=%({0})s'.format(k) for k in c_obj.__key__]))
-        if hasattr(c_obj, '__orderby__'):
-            sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
+            '`,`'.join(self.__columns__), 
+            self.__table__, 
+            ' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
+        if hasattr(self, '__orderby__'):
+            sql = sql + ' order by `{0}`'.format('`,`'.join(self.__orderby__))
         sql = sql + ' limit 1 '
 
         try:
@@ -85,10 +74,14 @@ def SQL_Object(c_obj):
 #
 #
 #
-    def counts(self):
+    def counts(self, keys=None):
+        if not hasattr(self, '__keys__') and keys is None:
+            raise RuntimeError('No key found')
+        if keys is None:
+            keys = self.__keys__
         sql = 'select count(*) as `num` from `{0}` where {1}'.format(
-            c_obj.__table__, 
-            ' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
+            self.__table__, 
+            ' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -105,15 +98,17 @@ def SQL_Object(c_obj):
 #
 # Update specific record
 #
-    def update(self):
-        if not hasattr(c_obj, '__key__'):
-            return False    
-        counts = self.counts()
+    def update(self, keys=None):
+        if not hasattr(self, '__keys__') and keys is None:
+            raise RuntimeError('No key found')
+        if keys is None:
+            keys = self.__keys__
+        counts = self.counts(keys)
         if counts > 0:
             sql = 'update `{0}` set {1} where {2}'.format(
-                c_obj.__table__, 
-                ','.join(['`{0}`=%({0})s'.format(column) for column in c_obj.__columns__]), 
-                ' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
+                self.__table__, 
+                ','.join(['`{0}`=%({0})s'.format(column) for column in self.__columns__]), 
+                ' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
             try:
                 dbc = get_dbc()
                 c = dbc.cursor(dictionary=True)
@@ -129,9 +124,9 @@ def SQL_Object(c_obj):
 #
     def insert(self):
         sql = 'insert into `{0}`(`{1}`) values({2})'.format(
-            c_obj.__table__, 
-            '`,`'.join(c_obj.__columns__), 
-            ','.join(['%({0})s'.format(column) for column in c_obj.__columns__]))
+            self.__table__, 
+            '`,`'.join(self.__columns__), 
+            ','.join(['%({0})s'.format(column) for column in self.__columns__]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -146,13 +141,15 @@ def SQL_Object(c_obj):
 #
 # delete a record
 #
-    def delete(self):
-        if hasattr(c_obj, '__key__'):
-            sql = 'delete from `{0}` where {1}'.format(
-                c_obj.__table__, 
-                ' and '.join(['`{0}`=%({0})s'.format(k) for k in c_obj.__key__]))
+    def delete(self, keys=None):
+        if not hasattr(self, '__keys__') and keys is None:
+            sql = 'delete from `{0}`'.format(self.__table__)
         else:
-            sql = 'delete from `{0}`'.format(c_obj.__table__)
+            if keys is None:
+                keys = self.__keys__
+            sql = 'delete from `{0}` where {1}'.format(
+                self.__table__, 
+                ' and '.join(['`{0}`=%({0})s'.format(k) for key in keys]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -167,27 +164,29 @@ def SQL_Object(c_obj):
 
     def get_keys(self):
         rtn = {}
-        if hasattr(c_obj, '__key__'):
-	    for k in c_obj.__key__:
-	        rtn[k] = getattr(self, k)
+        if hasattr(self, '__keys__'):
+	    for key in self.__keys__:
+	        rtn[key] = getattr(self, key)
         return rtn
 
     def get_dict(self):
         rtn = {}
-        for k in c_obj.__columns__:
-            rtn[k] = getattr(self, k)
+        for column in self.__columns__:
+            rtn[column] = getattr(self, column)
         return rtn
 #
 # iterator 
 #
-    def __iter__(self):
+    def __iter__(self, keys=None):
         sql = 'select `{0}` from `{1}`'.format(
-            '`,`'.join(c_obj.__columns__), 
-            c_obj.__table__)
-        if hasattr(c_obj, '__key__'):
-             sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
-        if hasattr(c_obj, '__orderby__'):
-            sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
+            '`,`'.join(self.__columns__), 
+            self.__table__)
+        if hasattr(self, '__keys__') or keys is not None:
+             if keys is None:
+                 keys = self.__keys__
+             sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
+        if hasattr(self, '__orderby__'):
+            sql = sql + ' order by `{0}`'.format('`,`'.join(self.__orderby__))
         if hasattr(self, 'page_size'):
             if not hasattr(self, 'cur_page'):
                 self.cur_page = 1
@@ -199,7 +198,7 @@ def SQL_Object(c_obj):
             c = dbc.cursor(dictionary=True)
             c.execute(sql, (self.get_keys()))
             for r in c:
-                rec = self.__class__()
+                rec = self.__class__(self.__table__, self.__columns__)
                 rec.set_value(r)
                 yield rec
         except Exception as e:
@@ -208,17 +207,4 @@ def SQL_Object(c_obj):
         finally:
             c.close()
             dbc.close()
-    members = {}
-    members['chain'] = chain
-    members['update'] = update
-    members['delete'] = delete
-    members['insert'] = insert
-    members['get_keys'] = get_keys
-    members['get_dict'] = get_dict
-    members['__iter__'] = __iter__
-    members['counts'] = counts
-    members['set_value'] = set_value
-    for k in attrs:
-        members[k] = getattr(c_obj, k)
-    return classobj(c_obj.__name__, (), members)
 
