@@ -62,7 +62,7 @@ def SQL_Object(c_obj):
         sql = 'select `{0}` from `{1}` where {2}'.format(
             '`,`'.join(c_obj.__columns__), 
             c_obj.__table__, 
-            ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
+            ' and '.join(['`{0}`=%({0})s'.format(k) for k in c_obj.__key__]))
         if hasattr(c_obj, '__orderby__'):
             sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
         sql = sql + ' limit 1 '
@@ -88,7 +88,7 @@ def SQL_Object(c_obj):
     def counts(self):
         sql = 'select count(*) as `num` from `{0}` where {1}'.format(
             c_obj.__table__, 
-            ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
+            ' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -112,8 +112,8 @@ def SQL_Object(c_obj):
         if counts > 0:
             sql = 'update `{0}` set {1} where {2}'.format(
                 c_obj.__table__, 
-                ','.join(['`{0}`=%%({0})s'%(column) for column in c_obj.__columns__]), 
-                ' and '.join(['`{0}`=%%({0})s'%(key) for key in c_obj.__key__]))
+                ','.join(['`{0}`=%({0})s'.format(column) for column in c_obj.__columns__]), 
+                ' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
             try:
                 dbc = get_dbc()
                 c = dbc.cursor(dictionary=True)
@@ -131,7 +131,7 @@ def SQL_Object(c_obj):
         sql = 'insert into `{0}`(`{1}`) values({2})'.format(
             c_obj.__table__, 
             '`,`'.join(c_obj.__columns__), 
-            ','.join(['%%({0})s'.format(column) for column in c_obj.__columns__]))
+            ','.join(['%({0})s'.format(column) for column in c_obj.__columns__]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -150,7 +150,7 @@ def SQL_Object(c_obj):
         if hasattr(c_obj, '__key__'):
             sql = 'delete from `{0}` where {1}'.format(
                 c_obj.__table__, 
-                ' and '.join(['`{0}`=%%({0})s'.format(k) for k in c_obj.__key__]))
+                ' and '.join(['`{0}`=%({0})s'.format(k) for k in c_obj.__key__]))
         else:
             sql = 'delete from `{0}`'.format(c_obj.__table__)
         try:
@@ -185,7 +185,7 @@ def SQL_Object(c_obj):
             '`,`'.join(c_obj.__columns__), 
             c_obj.__table__)
         if hasattr(c_obj, '__key__'):
-             sql = sql + '  where {0}'.format(' and '.join(['`%s`=%%(%s)s'%(k, k) for k in c_obj.__key__]))
+             sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in c_obj.__key__]))
         if hasattr(c_obj, '__orderby__'):
             sql = sql + ' order by `{0}`'.format('`,`'.join(c_obj.__orderby__))
         if hasattr(self, 'page_size'):
