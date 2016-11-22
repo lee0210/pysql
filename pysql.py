@@ -59,7 +59,7 @@ class table:
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
-            c.execute(sql, (self.get_keys()))
+            c.execute(sql, (self.get_keys(keys)))
             r = c.fetchone()
             if r == None:
                 return False
@@ -162,11 +162,14 @@ class table:
             c.close()
             dbc.close()
 
-    def get_keys(self):
+    def get_keys(self, keys=None):
+        if not hasattr(self, '__keys__') and keys is None:
+            return {}
+        if keys is None:
+            keys = self.__keys__
         rtn = {}
-        if hasattr(self, '__keys__'):
-	    for key in self.__keys__:
-	        rtn[key] = getattr(self, key)
+	for key in keys:
+	    rtn[key] = getattr(self, key)
         return rtn
 
     def get_dict(self):
@@ -196,7 +199,7 @@ class table:
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
-            c.execute(sql, (self.get_keys()))
+            c.execute(sql, (self.get_keys(keys)))
             for r in c:
                 rec = self.__class__(self.__table__, self.__columns__)
                 rec.set_value(r)
