@@ -2,7 +2,7 @@
 # Simple DAO for mysql
 #
 # Author   Lee Li
-# Contact  jw@leezypig.com
+# Contact  jw@qubitlee.com
 #
 from new import classobj
 from exceptions import RuntimeError
@@ -79,13 +79,11 @@ class table(object):
 #
 #
     def counts(self, keys=None):
-        if self._key_list is None and keys is None:
-            raise RuntimeError('No key found')
-        if keys is None:
-            keys = self._key_list
-        sql = 'select count(*) as `num` from `{0}` where {1}'.format(
-            self._table_name, 
-            ' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
+        sql = 'select count(*) as `num` from `{0}`'.format(self._table_name)
+        if self._key_list is not None or keys is not None:
+             if keys is None:
+                 keys = self._key_list
+             sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         try:
             dbc = get_dbc()
             c = dbc.cursor(dictionary=True)
@@ -216,7 +214,6 @@ class table(object):
 
 class change_table(table):
     def __init__(self, table, columns, keys):
-        self._table_name = table
-        self._columns = columns
+        super(change_table, self).__init__(table, columns)
         self._key_list = keys
     
