@@ -7,6 +7,7 @@
 from new import classobj
 from exceptions import RuntimeError
 from dbconf import configuare
+import plock
 import mysql.connector as DBConnector
 
 #
@@ -33,10 +34,10 @@ def execute(sql):
 
 class table(object):
     
-    def __init__(self, table, columns):
+    def __init__(self, table, columns, keys=None):
         self._table_name = table
         self._columns = columns
-        self._key_list = None
+        self._key_list = keys
         self._order_by = None
         self._current_page = None
         self._page_size = None
@@ -187,7 +188,8 @@ class table(object):
         if self._key_list is not None or keys is not None:
              if keys is None:
                  keys = self._key_list
-             sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
+             if len(keys) > 0:
+                 sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         if self._order_by is not None:
             sql = sql + ' order by `{0}`'.format('`,`'.join(self._order_by))
         if self._page_size is not None:
@@ -212,8 +214,57 @@ class table(object):
             dbc.close()
 
 
-class change_table(table):
-    def __init__(self, table, columns, keys):
-        super(change_table, self).__init__(table, columns)
-        self._key_list = keys
-    
+class lock_table(table):
+    def __init__(self, table, columns, unique_keys, keys=None):
+        super(lock_table, self).__init__(table, columns, keys)
+        self._unique_keys = unique_keys # use to lock record by record level
+    def chain(self, keys=None):
+        r = False
+        if self.lock():
+            r = super(lock_table, self).chain(keys)
+            if not r: self.unlock()
+        return r
+    def delete(self, keys=None):
+        r = super(lock_table, self).delete(keys)
+        if r: self.unlock()
+        return r
+    def update(self, keys=None):
+        r = super(lock_table, self).update(keys)
+        if r: self.unlock()
+        return r
+    def lock(self):
+        return plock.lock(self._table_name, self.get_keys(self._unique_keys))
+    def unlock(self):
+        return plock.unlock(self._table_name, self.get_keys(self._unique_keys))
+    def __iter__(self, keys=None):
+        sql = 'select `{0}` from `{1}`'.format(
+            '`,`'.join(self._columns), 
+            self._table_name)
+        if self._key_list is not None or keys is not None:
+             if keys is None:
+                 keys = self._key_list
+             if len(keys) > 0:
+                 sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
+        if self._order_by is not None:
+            sql = sql + ' order by `{0}`'.format('`,`'.join(self._order_by))
+        if self._page_size is not None:
+            if self._current_page is None:
+                self._current_page = 1
+            sql = sql + ' limit {0}, {1}'.format(
+                (self._current_page - 1) * self._page_size, 
+                self._page_size)
+        try:
+            dbc = get_dbc()
+            c = dbc.cursor(dictionary=True)
+            c.execute(sql, (self.get_keys(keys)))
+            for r in c:
+                rec = self.__class__(self._table_name, self._columns, self._unique_keys)
+                rec.set_value(r)
+                if rec.lock():
+                    yield rec
+        except Exception as e:
+            print e
+            raise StopIteration
+        finally:
+            c.close()
+            dbc.close()
