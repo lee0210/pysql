@@ -6,21 +6,15 @@
 #
 from new import classobj
 from exceptions import RuntimeError
-from dbconf import configuare
 import plock
-import mysql.connector as DBConnector
+import dbc as DBConnector
 
-#
-# Connect to database server
-#
-def get_dbc():
-    return DBConnector.connect(**configuare)
 #
 # Execute a SQL directly
 #
 def execute(sql):
     try:
-        dbc = get_dbc()
+        dbc = DBConnector.connect()
         c = dbc.cursor()
         c.execute(sql)
         return c
@@ -62,7 +56,7 @@ class table(object):
         sql = sql + ' limit 1 '
 
         try:
-            dbc = get_dbc()
+            dbc = DBConnector.connect()
             c = dbc.cursor(dictionary=True)
             c.execute(sql, (self.get_keys(keys)))
             r = c.fetchone()
@@ -86,7 +80,7 @@ class table(object):
                  keys = self._key_list
              sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         try:
-            dbc = get_dbc()
+            dbc = DBConnector.connect()
             c = dbc.cursor(dictionary=True)
             c.execute(sql, (self.get_keys(keys)))
             r = c.fetchone()
@@ -113,7 +107,7 @@ class table(object):
                 ','.join(['`{0}`=%({0})s'.format(column) for column in self._columns]), 
                 ' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
             try:
-                dbc = get_dbc()
+                dbc = DBConnector.connect()
                 c = dbc.cursor(dictionary=True)
                 c.execute(sql, (self.get_dict()))
             except Exception as e:
@@ -127,11 +121,11 @@ class table(object):
 #
     def write(self):
         sql = 'insert into `{0}`(`{1}`) values({2})'.format(
-            self._table_name, 
+            self._table_name,
             '`,`'.join(self._columns), 
             ','.join(['%({0})s'.format(column) for column in self._columns]))
         try:
-            dbc = get_dbc()
+            dbc = DBConnector.connect()
             c = dbc.cursor(dictionary=True)
             c.execute(sql, (self.get_dict()))
             return True
@@ -152,9 +146,10 @@ class table(object):
                  keys = self._key_list
              sql = sql + '  where {0}'.format(' and '.join(['`{0}`=%({0})s'.format(key) for key in keys]))
         try:
-            dbc = get_dbc()
+            dbc = DBConnector.connect()
             c = dbc.cursor(dictionary=True)
             c.execute(sql, (self.get_keys(keys)))
+            print c.fetchall()
             return True
         except Exception as e:
             print e
@@ -199,9 +194,13 @@ class table(object):
                 (self._current_page - 1) * self._page_size, 
                 self._page_size)
         try:
-            dbc = get_dbc()
-            c = dbc.cursor(dictionary=True)
+            dbc = DBConnector.connect()
+            c = dbc.cursor(dictionary=True, buffered=True)
+            print 'mysql status', dbc.is_connected()
             c.execute(sql, (self.get_keys(keys)))
+            print 'mysql status', dbc.is_connected()
+            print c.fetchall()
+            print 'sql', sql
             for r in c:
                 rec = self.__class__(self._table_name, self._columns)
                 rec.set_value(r)
@@ -254,9 +253,11 @@ class lock_table(table):
                 (self._current_page - 1) * self._page_size, 
                 self._page_size)
         try:
-            dbc = get_dbc()
-            c = dbc.cursor(dictionary=True)
+            dbc = DBConnector.connect()
+            c = dbc.cursor(dictionary=True, buffered=True)
+            print 'mysql status', dbc.is_connected()
             c.execute(sql, (self.get_keys(keys)))
+            print 'mysql status', dbc.is_connected()
             for r in c:
                 rec = self.__class__(self._table_name, self._columns, self._unique_keys)
                 rec.set_value(r)
@@ -268,3 +269,4 @@ class lock_table(table):
         finally:
             c.close()
             dbc.close()
+
