@@ -4,6 +4,9 @@ import mysql.connector as DBConnector
 __dbc = DBConnector.connect(**configuare)
 __dbc.close()
 
+def converter():
+    return __dbc.converter
+
 def connect():
     if not __dbc.is_connected():
         __dbc.reconnect()

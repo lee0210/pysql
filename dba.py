@@ -6,13 +6,12 @@ import traceback
 class query_builder(object):
     def __init__(self):
         self.sql = ''
+        self.converter = dbc.converter()
         self.data = {'columns':'','table':'','where':'','order':'','group':'','limit':'','option':''}
     def table(self, table, alias = ''):
         self.data['table'] = table if alias == '' else '%s as %s'%(table, alias)
         return self
     def select(self, *columns):
-        self.sql = 'select {columns} from {table} {where} {group} {order} {limit} {option}'
-        self.data['columns'] = ','.join(columns) if len(columns) > 0 else '*'
         return self
     def insert(self, table, alias = ''):
         return self
@@ -20,8 +19,7 @@ class query_builder(object):
         return self
     def delete(self, table, alias = ''):
         return self
-    def where(self, where):
-        self.data['where'] = 'where ' + where
+    def where(self, key={}):
         return self
     def orderby(self, *columns):
         self.data['order'] = 'order by ' + ','.join(columns)
@@ -32,10 +30,51 @@ class query_builder(object):
 
 class sql(object):
     def __init__(self):
-        pass
+        self.converter = dbc.converter()
     def table(self, table):
         self.table = table
         return self
+        
+    def read_in(self, keys, orderby=[], lock=False, iteration=False):
+        if keys == []:
+            return None;
+        sql = 'select * from %(table)s %(where)s %(order)s %(option)s'
+        sql_data = {'table' : self.table, 'where' : '', 'order' : '', 'option' : ''}
+        if lock:
+            if not dbc.in_transaction():
+                 raise RuntimeError('Not in transaction but trying to use lock')
+            sql_data['option'] = 'for update'
+        in_list = []
+        one_key = '(%s)' % ','.join(['%({0})s'.format(k) for k in keys[0].keys()])
+        for key in keys:
+            d = {}
+            for k, v in key.items():
+                conv = v
+                conv = self.converter.to_mysql(conv)
+                conv = self.converter.escape(conv)
+                conv = self.converter.quote(conv)
+                d[k] = bytes(conv)
+            in_list.append(one_key % d)
+        sql_data['where'] = 'where (%s) in (%s)' % (','.join(keys[0].keys()), ','.join(in_list))
+        if orderby != []:
+            sql_data['order'] = 'order by ' + ','.join(orderby)
+        sql = sql % sql_data
+        print sql
+        try:
+            c = None
+            c = dbc.connect().cursor(buffered=True, dictionary=True) 
+            c.execute(sql)
+            rt = c.fetchall()
+            if iteration:
+                self.rt = rt
+                return self
+            return rt
+        except Exception, e:
+            raise e
+        finally:
+            if c is not None: c.close()
+         
+        
     def read(self, key={}, orderby=[], lock=False, iteration=False):
         sql = 'select * from %(table)s %(where)s %(order)s %(option)s'
         sql_data = {'table' : self.table, 'where' : '', 'order' : '', 'option' : ''}
@@ -124,9 +163,20 @@ if __name__ == '__main__':
             'path': '/test/test{0}.jpg'.format(i),
             'ctime': datetime.datetime.now(),
         })
+    in_list = []
+    for i in range(0, 5):
+       in_list.append({
+            'name': 'test{0}.jpg'.format(i),
+            'path': '/test/test{0}.jpg'.format(i),
+       }) 
     sql().table('images_unit_test').update({'path': 'fuck you'}, {'name': 'test1.jpg'})
-    for i in sql().table('images_unit_test').read(orderby=['name'], iteration=True):
+    for i in sql().table('images_unit_test').read_in(in_list, iteration=True):
         print i
     sql().table('images_unit_test').delete()
     print sql().table('images_unit_test').read(orderby=['name'])
+
+    print sql().table('test').read_in([{'id': 1, 'f1': 1, 'f2': 1},{'id': 1, 'f2': 3, 'f1': 2}])
+
     dbc.close()
+
+
